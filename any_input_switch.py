@@ -1,12 +1,14 @@
 # ============================================================
 # ComfyuiAnySwitch — ComfyUI 自定义节点
-# item_count 控制 case / input 数量；前端 JS 动态增删 widget & slot
-# 懒加载：只计算命中的那条分支；无匹配走 input_default
+# 只执行匹配分支：check_lazy_status + lazy input 机制
+# case_N 和 input_N 均在 INPUT_TYPES 中声明（参考 FL_Switch_Big）
+# case_N: STRING widget，用于匹配条件
+# input_N: lazy input，未匹配分支不参与计算
+# input_default: lazy input，无匹配时兜底
 # GitHub: https://github.com/shenymce/ComfyuiAnySwitch
 # ============================================================
 
 class SmartType(str):
-    """让 '*' 能与任意类型匹配"""
     def __ne__(self, other):
         if self == "*" or other == "*":
             return False
@@ -25,7 +27,6 @@ def VariantSupport():
     def decorator(cls):
         if hasattr(cls, "INPUT_TYPES"):
             old_input_types = getattr(cls, "INPUT_TYPES")
-
             def new_input_types(*args, **kwargs):
                 types = old_input_types(*args, **kwargs)
                 for category in ["required", "optional"]:
@@ -35,7 +36,6 @@ def VariantSupport():
                         if isinstance(value, tuple):
                             types[category][key] = (MakeSmartType(value[0]),) + value[1:]
                 return types
-
             setattr(cls, "INPUT_TYPES", new_input_types)
 
         if hasattr(cls, "RETURN_TYPES"):
@@ -69,15 +69,22 @@ MAX_ITEMS = 64
 class AnyInputSwitch:
     """
     动态多路 Switch 节点。
-    - item_count       : 控制 case / input 端口数量（由前端 JS 同步维护）
-    - switch_condition : 条件字符串
-    - case_N           : 前端 JS 动态添加的 widget，后端通过 **kwargs 接收
-    - input_N          : 前端 JS 动态添加的 slot，任意类型，懒加载
-    - input_default    : 无匹配时兜底输入，始终存在
+    item_count 控制 case / input 数量；案例值精确匹配。
+    只计算命中分支；无匹配走 input_default。
     """
 
     @classmethod
     def INPUT_TYPES(cls):
+        optional = {
+            "input_default": ("*", {"lazy": True}),
+        }
+        for i in range(1, MAX_ITEMS + 1):
+            optional[f"input_{i}"] = ("*", {"lazy": True})
+            optional[f"case_{i}"] = ("STRING", {
+                "default": "",
+                "multiline": False,
+            })
+
         return {
             "required": {
                 "item_count": ("INT", {
@@ -92,12 +99,7 @@ class AnyInputSwitch:
                     "multiline": False,
                 }),
             },
-            "optional": {
-                # case_N 和 input_N 由前端 JS 动态管理；
-                # 后端通过 **kwargs 接收，不在此静态声明
-                # input_default 后端静态声明，始终存在
-                "input_default": ("*", {"lazy": True}),
-            },
+            "optional": optional,
         }
 
     RETURN_TYPES = ("*",)
@@ -107,42 +109,41 @@ class AnyInputSwitch:
 
     DESCRIPTION = (
         "动态多路 Switch 节点。\n"
-        "- item_count 控制 case / input 数量（前端同步，两者始终相等）\n"
+        "- item_count 控制 case / input 数量\n"
         "- switch_condition 与各 case_N 精确匹配\n"
         "- 命中 case_N → 输出 input_N；无匹配 → 输出 input_default\n"
         "- 未命中分支不参与计算（懒加载）"
     )
 
     def check_lazy_status(self, item_count, switch_condition, **kwargs):
+        """
+        返回需要计算的输入名。
+        命中分支的 upstream 通过 make_input_strong_link 强制计算，
+        其他分支的 upstream 不执行。
+        """
         n = int(item_count)
-        matched = False
+        n = max(1, min(MAX_ITEMS, n))
 
         for i in range(1, n + 1):
             case_val = kwargs.get(f"case_{i}", "")
-            if switch_condition == case_val:
-                matched = True
-                if kwargs.get(f"input_{i}") is None:
-                    return [f"input_{i}"]
-                return []  # 已求值，直接返回空
+            if switch_condition and switch_condition == case_val:
+                return [f"input_{i}"]
 
-        if not matched:
-            if kwargs.get("input_default") is None:
-                return ["input_default"]
-
-        return []
+        # 都不匹配 → 走 default
+        return ["input_default"]
 
     def switch(self, item_count, switch_condition, **kwargs):
         n = int(item_count)
+        n = max(1, min(MAX_ITEMS, n))
 
         for i in range(1, n + 1):
             case_val = kwargs.get(f"case_{i}", "")
-            if switch_condition == case_val:
+            if switch_condition and switch_condition == case_val:
                 val = kwargs.get(f"input_{i}")
                 if val is not None:
                     return (val,)
-                break  # 匹配但未连线 → 走 default
+                break
 
-        # 无匹配 or input_N 未连线 → default
         return (kwargs.get("input_default"),)
 
 
