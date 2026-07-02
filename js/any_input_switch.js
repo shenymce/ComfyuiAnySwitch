@@ -93,7 +93,8 @@ app.registerExtension({
         const origConfigure = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function (info) {
             origConfigure?.apply(this, arguments);
-            this._syncCasesFromJson();
+            // __case_json 已被 origConfigure 还原，
+            // _syncIO 内部会调用 _syncCasesFromJson 恢复各 case widget 值
             this._doSync();
         };
 
@@ -131,6 +132,9 @@ app.registerExtension({
                     this._addCaseWidget(num);
                 }
             }
+
+            // 从 __case_json 恢复 widget 值（工作流加载时 json 已还原）
+            this._syncCasesFromJson();
 
             // 同步 case 值到 JSON
             this._syncCasesToJson();
