@@ -1,12 +1,15 @@
 # ============================================================
 # ComfyuiAnySwitch — ComfyUI 自定义节点
 # 只执行匹配分支：check_lazy_status + lazy input 机制
-# case_N 和 input_N 均在 INPUT_TYPES 中声明（参考 FL_Switch_Big）
-# case_N: STRING widget，用于匹配条件
-# input_N: lazy input，未匹配分支不参与计算
-# input_default: lazy input，无匹配时兜底
+#
+# input_N / input_default: 在 INPUT_TYPES 中声明为 lazy（懒加载需要）
+# case_N: 不在 INPUT_TYPES 中（JS 动态管理 widget）
+# __case_json: 隐藏字段，存储所有 case 值的 JSON（供 lazy 判断读取）
+#
 # GitHub: https://github.com/shenymce/ComfyuiAnySwitch
 # ============================================================
+
+import json
 
 class SmartType(str):
     def __ne__(self, other):
@@ -67,36 +70,29 @@ MAX_ITEMS = 64
 
 @VariantSupport()
 class AnyInputSwitch:
-    """
-    动态多路 Switch 节点。
-    item_count 控制 case / input 数量；案例值精确匹配。
-    只计算命中分支；无匹配走 input_default。
-    """
+    """动态多路 Switch。只计算命中分支；无匹配走 input_default。"""
 
     @classmethod
     def INPUT_TYPES(cls):
         optional = {
             "input_default": ("*", {"lazy": True}),
+            # __case_json 存储所有 case 值的 JSON 字符串（供 check_lazy_status 读取）
+            # 前端 JS 负责维护此字段的值
+            "__case_json": ("STRING", {
+                "default": "{}",
+                "multiline": False,
+            }),
         }
         for i in range(1, MAX_ITEMS + 1):
             optional[f"input_{i}"] = ("*", {"lazy": True})
-            optional[f"case_{i}"] = ("STRING", {
-                "default": "",
-                "multiline": False,
-            })
 
         return {
             "required": {
                 "item_count": ("INT", {
-                    "default": 3,
-                    "min": 1,
-                    "max": MAX_ITEMS,
-                    "step": 1,
-                    "display": "number",
+                    "default": 3, "min": 1, "max": MAX_ITEMS, "step": 1, "display": "number",
                 }),
                 "switch_condition": ("STRING", {
-                    "default": "",
-                    "multiline": False,
+                    "default": "", "multiline": False,
                 }),
             },
             "optional": optional,
@@ -108,36 +104,43 @@ class AnyInputSwitch:
     CATEGORY = "utils"
 
     DESCRIPTION = (
-        "动态多路 Switch 节点。\n"
-        "- item_count 控制 case / input 数量\n"
-        "- switch_condition 与各 case_N 精确匹配\n"
-        "- 命中 case_N → 输出 input_N；无匹配 → 输出 input_default\n"
-        "- 未命中分支不参与计算（懒加载）"
+        "动态多路 Switch。\n"
+        "switch_condition 与各 case_N 精确匹配。\n"
+        "命中 → 输出对应 input_N；无匹配 → input_default。\n"
+        "未命中分支不参与计算（懒加载）。"
     )
 
     def check_lazy_status(self, item_count, switch_condition, **kwargs):
-        """
-        返回需要计算的输入名。
-        命中分支的 upstream 通过 make_input_strong_link 强制计算，
-        其他分支的 upstream 不执行。
-        """
         n = int(item_count)
         n = max(1, min(MAX_ITEMS, n))
 
+        # 从 __case_json 解析 case 值
+        case_json = kwargs.get("__case_json", "{}")
+        try:
+            cases = json.loads(case_json)
+        except (json.JSONDecodeError, TypeError):
+            cases = {}
+
         for i in range(1, n + 1):
-            case_val = kwargs.get(f"case_{i}", "")
+            case_val = cases.get(str(i), "")
             if switch_condition and switch_condition == case_val:
                 return [f"input_{i}"]
 
-        # 都不匹配 → 走 default
         return ["input_default"]
 
     def switch(self, item_count, switch_condition, **kwargs):
         n = int(item_count)
         n = max(1, min(MAX_ITEMS, n))
 
+        # 从 __case_json 解析 case 值
+        case_json = kwargs.get("__case_json", "{}")
+        try:
+            cases = json.loads(case_json)
+        except (json.JSONDecodeError, TypeError):
+            cases = {}
+
         for i in range(1, n + 1):
-            case_val = kwargs.get(f"case_{i}", "")
+            case_val = cases.get(str(i), "")
             if switch_condition and switch_condition == case_val:
                 val = kwargs.get(f"input_{i}")
                 if val is not None:
