@@ -29,8 +29,7 @@ git clone https://github.com/shenymce/ComfyuiAnySwitch.git
 
 匹配逻辑：`switch_condition` 与 `case_N` 做精确字符串比较，命中第一个匹配项即输出对应 `input_N`；全部不匹配时输出 `input_default`。
 
-<img width="897" height="879" alt="image" src="https://github.com/user-attachments/assets/93abb18e-51d1-4df9-931e-88ac8643a8c5" />
-
+<img width="918" height="913" alt="image" src="https://github.com/user-attachments/assets/fba432be-4c68-41b1-86d4-b9e1fcd4c18e" />
 
 ## 示例
 
