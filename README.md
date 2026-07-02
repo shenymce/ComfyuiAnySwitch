@@ -13,7 +13,7 @@ ComfyUI 动态多路 Switch 节点 —— 任意数量输入、精确匹配、de
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone [<repo-url>](https://github.com/shenymce/ComfyuiAnySwitch.git)
+git clone https://github.com/shenymce/ComfyuiAnySwitch.git
 # 无第三方依赖，无需 pip install
 ```
 
