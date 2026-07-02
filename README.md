@@ -13,7 +13,7 @@ ComfyUI 动态多路 Switch 节点 —— 任意数量输入、精确匹配、de
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone <repo-url>
+git clone [<repo-url>](https://github.com/shenymce/ComfyuiAnySwitch.git)
 # 无第三方依赖，无需 pip install
 ```
 
@@ -28,6 +28,9 @@ git clone <repo-url>
 5. `input_default` 接默认路径
 
 匹配逻辑：`switch_condition` 与 `case_N` 做精确字符串比较，命中第一个匹配项即输出对应 `input_N`；全部不匹配时输出 `input_default`。
+
+<img width="897" height="879" alt="image" src="https://github.com/user-attachments/assets/93abb18e-51d1-4df9-931e-88ac8643a8c5" />
+
 
 ## 示例
 
